@@ -1,0 +1,7 @@
+name = "Transfer Files"
+description = "Server setup to transfer files from dropboxes into albums"
+version = 1
+author_name = "cheechun"
+author_url = ""
+info_url = ""
+discuss_url = ""
