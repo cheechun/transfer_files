@@ -63,8 +63,8 @@ class Transfer_Files_Controller extends Controller {
      photos will be categorized by yyyy mm
      movies go to Movies subdirectory
   ************************************************************/
-  static function transfer($directory, $baseAlbum, $movepath){
-  
+  static function transfer($directory, $baseAlbum, $movedir){
+ 
     // Get all files and filter out . and .. 
     $paths = scandir($directory);
     $bad = array(".", "..");
@@ -73,7 +73,15 @@ class Transfer_Files_Controller extends Controller {
       $fullpath = $directory . DIRECTORY_SEPARATOR . $path;
       // if subdirectory call transfer recursively
       if (is_dir($fullpath)){ 
-        self::transfer($fullpath, $baseAlbum, $movepath); 
+        // create move destination path
+        $movedest = $movedir . DIRECTORY_SEPARATOR . $path;
+        if (!is_dir($movedest)){
+          mkdir($movedest, 0770);
+          chown($movedest, fileowner($fullpath));
+          chgrp($movedest, filegroup($fullpath));
+        }
+
+        self::transfer($fullpath, $baseAlbum, $movedest); 
         continue;   // process next item
       } else {
         // check validity of extensions
@@ -88,9 +96,6 @@ class Transfer_Files_Controller extends Controller {
       $month = substr($path, 5, 2);
 
       $yearAlbum = self::getSubAlbum($baseAlbum, $year);
-
-error_log("parent album id $yearAlbum->id\n", 3, "/tmp/transfer_files.out");
-
       $curAlbum = self::getSubAlbum($yearAlbum, $month);
 
       $basealbumid = $curAlbum->id;
@@ -102,6 +107,7 @@ error_log("parent album id $yearAlbum->id\n", 3, "/tmp/transfer_files.out");
                ->count_all();
       if ($foundFile > 0){
         error_log("File $path already exist\n", 3, "/tmp/transfer_files.out");
+        self::moveOrigFile($fullpath, $movedir); 
         continue;   // process next item
       }
       // Create new item
@@ -116,6 +122,7 @@ error_log("parent album id $yearAlbum->id\n", 3, "/tmp/transfer_files.out");
         $newitem->type = "movie";
       }
 
+      // create new item
       try {
         $newitem->parent_id = $basealbumid;
         $newitem->set_data_file($fullpath);
@@ -129,11 +136,20 @@ error_log("parent album id $yearAlbum->id\n", 3, "/tmp/transfer_files.out");
         foreach ($e->validation->errors() as $key => $error) {
           error_log("transfer error $key $error", 3, "/tmp/transfer_files.out");
         }
+        continue;
       }
-  
+      self::moveOrigFile($fullpath, $movedir); 
     } // foreach
   }
 
+  static function moveOrigFile($filepath, $destdir) {
+    // move original file to another folder
+    if (is_writeable($destdir) && is_writeable($filepath)){
+      $destfile = $destdir . DIRECTORY_SEPARATOR . basename($filepath); 
+      rename ($filepath, $destfile); 
+    }
+
+  }
 
   static function getSubAlbum($parentAlbum, $name){
       

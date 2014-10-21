@@ -28,6 +28,8 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
     $view->content->path_entries = $this->configuredPaths();
 
     transfer_files::check_configs($path_entries);
+
+error_log("index:end\n", 3, "/tmp/transfer_files.out");
     print $view;
   }
 
@@ -36,20 +38,23 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
 
     $form = $this->_get_admin_form();
     $path_entries = unserialize(module::get_var("transfer_files", "path_entries", "a:0:{}"));
-
+error_log("add_path:b4 validate\n", 3, "/tmp/transfer_files.out");
     if ($form->validate()) {
 
+error_log("add_path:after validate\n", 3, "/tmp/transfer_files.out");
       $sourcepath = $form->add_path->sourcepath->value;
       $album = html_entity_decode($form->add_path->albumid->value);
-      $movepath = $form->add_path->sourcepath->value;
+      $movepath = $form->add_path->movepath->value;
 
+error_log("add_path:var $sourcepath, $album, $movepath\n", 3, "/tmp/transfer_files.out");
       if (is_link($sourcepath)) {
         $form->add_path->sourcepath->add_error("is_symlink", 1);
       } else if (!is_readable($sourcepath)) {
         $form->add_path->sourcepath->add_error("not_readable", 1);
+      } else if (($movepath != "") && !is_writeable($movepath)) {
+        $form->add_path->movepath->add_error("not_writeable", 1);
       } else {
 
-        //**  the second path should be the movepath
         $path_entries[$sourcepath] = array( $album, $movepath );
         module::set_var("transfer_files", "path_entries", serialize($path_entries));
 
@@ -63,6 +68,8 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
     $view->content = new View("admin_transfer_files.html");
     $view->content->form = $form;
     $view->content->path_entries = $this->configuredPaths();
+error_log("add_path\n", 3, "/tmp/transfer_files.out");
+
     print $view;
   }
 
@@ -113,12 +120,13 @@ error_log("_get_admin_form\n", 3, "/tmp/transfer_files.out");
         ->label(t("Transfer to album"))
         ->options($subflistperm);
 
-    $add_path->input("move_path")->label(t("Optional : Move Processed Files to (not ready yet)"))->id("g-move-path")
+    $add_path->input("movepath")->label(t("Optional : Move Processed Files to (not ready yet)"))->id("g-move-path")
              ->error_messages("not_writeable", t("This directory is not writeable by the webserver"))
              ->error_messages("is_symlink", t("Symbolic links are not allowed"));
 
     $add_path->submit("add")->value(t("Add Path"));
 
+error_log("_get_admin_form:end\n", 3, "/tmp/transfer_files.out");
     return $form;
   }
 
@@ -129,12 +137,27 @@ error_log("_get_admin_form\n", 3, "/tmp/transfer_files.out");
     else
       $sflist = array(1 =>t("Parent album"));
    
-    $subalbums = ORM::factory("item")->where("type","=","album")->where("level","<","5")->find_all();
-    foreach ($subalbums as $album) {
-      $sflist[$album->id] = str_repeat("-", $album->level) . $album->title;
-    }
+//    $subalbums = ORM::factory("item")->where("type","=","album")->where("level","<","5")->find_all();
+//    foreach ($subalbums as $album) {
+//      $sflist[$album->id] = str_repeat("-", $album->level) . $album->title;
+//    }
+
+    $this->get_subalbums(1, $sflist);
    
     return $sflist;
+  }
+
+  private function get_subalbums($albumid, &$sflist) {
+error_log("get_subalbums for $albumid\n", 3, "/tmp/transfer_files.out");
+    $subalbums = ORM::factory("item")->where("type","=","album")->where("parent_id","=","$albumid")->find_all();
+
+    foreach ($subalbums as $album) {
+      $level = $album->level;
+      $sflist[$album->id] = str_repeat("-", $level) . $album->title;
+error_log("get_subalbums $album->id, level $level\n",  3, "/tmp/transfer_files.out");
+      if ($level <=3)
+        $this->get_subalbums($album->id, $sflist);
+    }
   }
 
   private function configuredPaths(){
