@@ -1,5 +1,7 @@
 <?php
 
+define("TRANSFER_FILES_VERBOSE", true);
+
 // Acquire lock
 @$fp = fopen(sys_get_temp_dir().DIRECTORY_SEPARATOR."transfer_files.lock", "w+");
 if (!flock($fp, LOCK_EX | LOCK_NB)) {

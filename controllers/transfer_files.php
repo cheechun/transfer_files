@@ -40,7 +40,8 @@ class Transfer_Files_Controller extends Controller {
                ->where("id", "=", $albumid)
                ->count_all();
       if ($foundAlbum != 1){
-        error_log("album id $albumid not found\n", 3, "/tmp/transfer_files.out");
+//        error_log("album id $albumid not found\n", 3, "/tmp/transfer_files.out");
+        transfer_files::verboselog("album id $albumid not found\n");
         continue;
       }
 
@@ -51,7 +52,7 @@ class Transfer_Files_Controller extends Controller {
       if (is_dir($sourcepath)){
         self::transfer($sourcepath, $baseAlbum, $movepath);
       } else {
-        error_log("path $sourcepath not found\n", 3, "/tmp/transfer_files.out");
+//        error_log("path $sourcepath not found\n", 3, "/tmp/transfer_files.out");
         continue;
       }
       
@@ -106,13 +107,13 @@ class Transfer_Files_Controller extends Controller {
                ->where("parent_id","=",$basealbumid)
                ->count_all();
       if ($foundFile > 0){
-        error_log("File $path already exist\n", 3, "/tmp/transfer_files.out");
+//        error_log("File $path already exist\n", 3, "/tmp/transfer_files.out");
         self::moveOrigFile($fullpath, $movedir); 
         continue;   // process next item
       }
       // Create new item
       $title = item::convert_filename_to_title($path);
-      error_log("Importing $fullpath into album id $basealbumid\n", 3, "/tmp/transfer_files.out");
+//      error_log("Importing $fullpath into album id $basealbumid\n", 3, "/tmp/transfer_files.out");
   
       $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
       $newitem = ORM::factory("item");
@@ -131,10 +132,13 @@ class Transfer_Files_Controller extends Controller {
         $newitem->owner_id = $curAlbum->owner_id;
         $newitem->save();
         $result = true;
-        error_log("$path created as $newitem->id into album id $basealbumid", 3, "/tmp/transfer_files.out");
+//        error_log("$path created as $newitem->id into album id $basealbumid", 3, "/tmp/transfer_files.out");
+        transfer_files::verboselog("Imported $fullpath\n");
       } catch (ORM_Validation_Exception $e) {
+        transfer_files::verboselog("ERR: Import $fullpath failed\n");
         foreach ($e->validation->errors() as $key => $error) {
-          error_log("transfer error $key $error", 3, "/tmp/transfer_files.out");
+//          error_log("transfer error $key $error", 3, "/tmp/transfer_files.out");
+            transfer_files::verboselog("ERR: transfer error $key $error\n");
         }
         continue;
       }
@@ -178,7 +182,8 @@ class Transfer_Files_Controller extends Controller {
         // Translate ORM validation errors into form error messages
         // calendarimport::log_event("Failed to create album. The error will appear in the next entry",2,10022);
         foreach ($e->validation->errors() as $key => $error) {
-          error_log("subalbum_create error $key $error", 3, "/tmp/transfer_files.out");
+//          error_log("subalbum_create error $key $error", 3, "/tmp/transfer_files.out");
+          transfer_files::verboselog("subalbum_create error $key $error\n");
         }
         return NULL;
       }
