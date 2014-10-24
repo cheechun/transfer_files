@@ -19,11 +19,11 @@
  */
 class transfer_files_Core {
 
-  static function check_configs($path_entries=null) {
+  static function check_config($path_entries=null) {
     if ($path_entries === null) {
       $path_entries = unserialize(module::get_var("transfer_files", "path_entries"));
     }
-error_log("check_configs", 3, "/tmp/transfer_files.out");
+error_log("check_config", 3, "/tmp/transfer_files.out");
     if (empty($path_entries)) {
       site_status::warning(
         t("Transfer Files needs configuration. <a href=\"%url\">Configure it now!</a>",
