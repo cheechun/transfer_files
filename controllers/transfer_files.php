@@ -177,6 +177,8 @@ class Transfer_Files_Controller extends Controller {
         $album->title = strval($name);
         $album->slug = strval($name);
         $album->owner_id = $parentAlbum->owner_id;
+        $album->sort_order = $parent->sort_order;
+        $album->sort_column = $parent->sort_column;
         $album->save();
       } catch (ORM_Validation_Exception $e) {
         // Translate ORM validation errors into form error messages
