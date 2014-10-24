@@ -27,7 +27,7 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
 
     $view->content->path_entries = $this->configuredPaths();
 
-    transfer_files::check_configs($path_entries);
+    transfer_files::check_config($path_entries);
 
 error_log("index:end\n", 3, "/tmp/transfer_files.out");
     print $view;
@@ -59,7 +59,7 @@ error_log("add_path:var $sourcepath, $album, $movepath\n", 3, "/tmp/transfer_fil
         module::set_var("transfer_files", "path_entries", serialize($path_entries));
 
         message::success(t("Added path %path", array("path" => $sourcepath)));
-        transfer_files::check_configs($path_entries);
+        transfer_files::check_config($path_entries);
         url::redirect("admin/transfer_files");
       }
     }
@@ -87,7 +87,7 @@ error_log("add_path\n", 3, "/tmp/transfer_files.out");
 
       module::set_var("transfer_files", "path_entries", serialize($path_entries));
 
-      transfer_files::check_configs($path_entries);
+      transfer_files::check_config($path_entries);
       url::redirect("admin/transfer_files");
     }
   }
