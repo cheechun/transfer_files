@@ -19,6 +19,8 @@
  */
 class Transfer_Files_Controller extends Controller {
 
+  static $process_ext;
+
   static function cron()
   {
     $owner_id = 2;
@@ -31,6 +33,10 @@ class Transfer_Files_Controller extends Controller {
 
     $paths = unserialize(module::get_var("transfer_files", "path_entries", "a:0:{}"));
 
+    $exts = module::get_var("transfer_files", "file_ext", "");
+    if ($exts != "")
+      self::$process_ext = array_map('trim', explode(",", $exts));
+
     foreach ($paths as $sourcepath => $settings){
       $albumid = $settings[0];
       $movepath = $settings[1];
@@ -40,8 +46,6 @@ class Transfer_Files_Controller extends Controller {
                ->where("id", "=", $albumid)
                ->count_all();
       if ($foundAlbum != 1){
-//        error_log("album id $albumid not found\n", 3, "/tmp/transfer_files.out");
-        transfer_files::verboselog("album id $albumid not found\n");
         continue;
       }
 
@@ -52,7 +56,6 @@ class Transfer_Files_Controller extends Controller {
       if (is_dir($sourcepath)){
         self::transfer($sourcepath, $baseAlbum, $movepath);
       } else {
-//        error_log("path $sourcepath not found\n", 3, "/tmp/transfer_files.out");
         continue;
       }
       
@@ -65,29 +68,41 @@ class Transfer_Files_Controller extends Controller {
      movies go to Movies subdirectory
   ************************************************************/
   static function transfer($directory, $baseAlbum, $movedir){
- 
     // Get all files and filter out . and .. 
     $paths = scandir($directory);
     $bad = array(".", "..");
     $paths = array_diff($paths, $bad); 
+
     foreach ($paths as $path){
       $fullpath = $directory . DIRECTORY_SEPARATOR . $path;
+      $movedest = "";
       // if subdirectory call transfer recursively
       if (is_dir($fullpath)){ 
+        transfer_files::verboselog("Processing $fullpath \n"); 
         // create move destination path
-        $movedest = $movedir . DIRECTORY_SEPARATOR . $path;
-        if (!is_dir($movedest)){
-          mkdir($movedest, 0770);
-          chown($movedest, fileowner($fullpath));
-          chgrp($movedest, filegroup($fullpath));
+        if ($movedir != "") {
+          $movedest = $movedir . DIRECTORY_SEPARATOR . $path;
+          if (!is_dir($movedest)){
+            mkdir($movedest, 0770);
+            chown($movedest, fileowner($fullpath));
+            chgrp($movedest, filegroup($fullpath));
+          }
         }
 
         self::transfer($fullpath, $baseAlbum, $movedest); 
         continue;   // process next item
       } else {
+        transfer_files::verboselog("Transfering $fullpath and move to $movedir");
         // check validity of extensions
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        // check that file is within requested list of extensions
+        if (!in_array($ext, self::$process_ext)){
+          transfer_files::verboselog(" - not in the list of extension configured \n");
+          continue;
+        }
+
         if (!legal_file::get_extensions($ext)) {
+          transfer_files::verboselog(" - gallery cannot handle this filetype \n");
           continue;   // process next item
         }
       }
@@ -107,13 +122,12 @@ class Transfer_Files_Controller extends Controller {
                ->where("parent_id","=",$basealbumid)
                ->count_all();
       if ($foundFile > 0){
-//        error_log("File $path already exist\n", 3, "/tmp/transfer_files.out");
-        self::moveOrigFile($fullpath, $movedir); 
+        transfer_files::verboselog(" - already exist\n");
+        self::moveOrigFile($fullpath, $movedest); 
         continue;   // process next item
       }
       // Create new item
       $title = item::convert_filename_to_title($path);
-//      error_log("Importing $fullpath into album id $basealbumid\n", 3, "/tmp/transfer_files.out");
   
       $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
       $newitem = ORM::factory("item");
@@ -132,17 +146,14 @@ class Transfer_Files_Controller extends Controller {
         $newitem->owner_id = $curAlbum->owner_id;
         $newitem->save();
         $result = true;
-//        error_log("$path created as $newitem->id into album id $basealbumid", 3, "/tmp/transfer_files.out");
-        transfer_files::verboselog("Imported $fullpath\n");
+        transfer_files::verboselog(" - Created new item $newitem->id \n");
       } catch (ORM_Validation_Exception $e) {
-        transfer_files::verboselog("ERR: Import $fullpath failed\n");
         foreach ($e->validation->errors() as $key => $error) {
-//          error_log("transfer error $key $error", 3, "/tmp/transfer_files.out");
-            transfer_files::verboselog("ERR: transfer error $key $error\n");
+          transfer_files::verboselog("ERR: transfer error $key $error\n");
         }
         continue;
       }
-      self::moveOrigFile($fullpath, $movedir); 
+      self::moveOrigFile($fullpath, $movedest); 
     } // foreach
   }
 
@@ -170,21 +181,19 @@ class Transfer_Files_Controller extends Controller {
       // We couldn't find the subalbum so we must create it
       try {
         $album = ORM::factory("item");
-      
         $album->type = "album";
         $album->parent_id = $parentAlbum->id;
         $album->name = strval($name);
         $album->title = strval($name);
         $album->slug = strval($name);
         $album->owner_id = $parentAlbum->owner_id;
-        $album->sort_order = $parent->sort_order;
-        $album->sort_column = $parent->sort_column;
+        $album->sort_order = $parentAlbum->sort_order;
+        $album->sort_column = $parentAlbum->sort_column;
         $album->save();
       } catch (ORM_Validation_Exception $e) {
         // Translate ORM validation errors into form error messages
         // calendarimport::log_event("Failed to create album. The error will appear in the next entry",2,10022);
         foreach ($e->validation->errors() as $key => $error) {
-//          error_log("subalbum_create error $key $error", 3, "/tmp/transfer_files.out");
           transfer_files::verboselog("subalbum_create error $key $error\n");
         }
         return NULL;

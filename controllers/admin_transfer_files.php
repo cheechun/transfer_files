@@ -24,12 +24,12 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
     $view->page_title = t("Transfer Files");
     $view->content = new View("admin_transfer_files.html");
     $view->content->form = $this->_get_admin_form();
+    $view->content->form_additional = $this->_get_admin_form_additional();
 
     $view->content->path_entries = $this->configuredPaths();
 
     transfer_files::check_config($path_entries);
 
-// error_log("index:end\n", 3, "/tmp/transfer_files.out");
     print $view;
   }
 
@@ -38,15 +38,12 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
 
     $form = $this->_get_admin_form();
     $path_entries = unserialize(module::get_var("transfer_files", "path_entries", "a:0:{}"));
-// error_log("add_path:b4 validate\n", 3, "/tmp/transfer_files.out");
     if ($form->validate()) {
 
-// error_log("add_path:after validate\n", 3, "/tmp/transfer_files.out");
       $sourcepath = $form->add_path->sourcepath->value;
       $album = html_entity_decode($form->add_path->albumid->value);
       $movepath = $form->add_path->movepath->value;
 
-// error_log("add_path:var $sourcepath, $album, $movepath\n", 3, "/tmp/transfer_files.out");
       if (is_link($sourcepath)) {
         $form->add_path->sourcepath->add_error("is_symlink", 1);
       } else if (!is_readable($sourcepath)) {
@@ -68,7 +65,6 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
     $view->content = new View("admin_transfer_files.html");
     $view->content->form = $form;
     $view->content->path_entries = $this->configuredPaths();
-// error_log("add_path\n", 3, "/tmp/transfer_files.out");
 
     print $view;
   }
@@ -96,9 +92,7 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
     $directories = array();
 
     $path_prefix = Input::instance()->get("q");
-// error_log("autocomplete $path_prefix\n", 3, "/tmp/transfer_files.out");
     foreach (glob("{$path_prefix}*") as $file) {
-// error_log("autocomplete $file\n", 3, "/tmp/transfer_files.out");
       if (is_dir($file) && !is_link($file)) {
         $directories[] = $file;
       }
@@ -108,7 +102,6 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
   }
 
   private function _get_admin_form() {
-// error_log("_get_admin_form\n", 3, "/tmp/transfer_files.out");
     $form = new Forge("admin/transfer_files/add_path", "", "post");
     $add_path = $form->group("add_path");
     $add_path->input("sourcepath")->label(t("Path"))->rules("required")->id("g-path")
@@ -126,7 +119,32 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
 
     $add_path->submit("add")->value(t("Add Path"));
 
-// error_log("_get_admin_form:end\n", 3, "/tmp/transfer_files.out");
+    return $form;
+  }
+
+  public function save_options() {
+    access::verify_csrf();
+    $form = $this->_get_admin_form_additional();
+    if($form->validate()) {
+      $file_ext = strtolower($form->addition_options->file_ext->value);
+      $file_ext = preg_replace('/^,/', "", $file_ext);
+      $file_ext = preg_replace('/,[\s*,]*/', ",", $file_ext);
+      module::set_var("transfer_files", "file_ext", $file_ext);
+    }
+    url::redirect("admin/transfer_files");
+  }
+
+
+  private function _get_admin_form_additional() {
+    $form = new Forge("admin/transfer_files/save_options", "", "post",
+                      array("id" => "g-transfer-files-admin-additional-form"));
+    $group = $form->group("addition_options")->label(t("Additional options"));
+
+    $input = $group->input("file_ext")->label(t("Valid File Extensions (comma separated)"))->id("g-file-ext")
+                        ->value(module::get_var("transfer_files", "file_ext"));
+
+    $group->submit("save")->value(t("Save"));
+
     return $form;
   }
 
@@ -148,13 +166,11 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
   }
 
   private function get_subalbums($albumid, &$sflist) {
-// error_log("get_subalbums for $albumid\n", 3, "/tmp/transfer_files.out");
     $subalbums = ORM::factory("item")->where("type","=","album")->where("parent_id","=","$albumid")->find_all();
 
     foreach ($subalbums as $album) {
       $level = $album->level;
       $sflist[$album->id] = str_repeat("-", $level) . $album->title;
-// error_log("get_subalbums $album->id, level $level\n",  3, "/tmp/transfer_files.out");
       if ($level <=3)
         $this->get_subalbums($album->id, $sflist);
     }
