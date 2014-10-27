@@ -43,7 +43,7 @@ class Admin_Transfer_Files_Controller extends Admin_Controller {
       $sourcepath = $form->add_path->sourcepath->value;
       $album = html_entity_decode($form->add_path->albumid->value);
       $movepath = $form->add_path->movepath->value;
-
+transfer_files::verboselog("$sourcepath\n");
       if (is_link($sourcepath)) {
         $form->add_path->sourcepath->add_error("is_symlink", 1);
       } else if (!is_readable($sourcepath)) {

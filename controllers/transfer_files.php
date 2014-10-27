@@ -75,18 +75,19 @@ class Transfer_Files_Controller extends Controller {
 
     foreach ($paths as $path){
       $fullpath = $directory . DIRECTORY_SEPARATOR . $path;
-      $movedest = "";
+      $movedest = $movedir;
       // if subdirectory call transfer recursively
       if (is_dir($fullpath)){ 
         transfer_files::verboselog("Processing $fullpath \n"); 
         // create move destination path
         if ($movedir != "") {
-          $movedest = $movedir . DIRECTORY_SEPARATOR . $path;
-          if (!is_dir($movedest)){
-            mkdir($movedest, 0770);
-            chown($movedest, fileowner($fullpath));
-            chgrp($movedest, filegroup($fullpath));
-          }
+          // Create subdirs as per source.  Not implemented yet
+//          $movedest = $movedir . DIRECTORY_SEPARATOR . $path;
+//          if (!is_dir($movedest)){
+//            mkdir($movedest, 0770);
+//            chown($movedest, fileowner($fullpath));
+//            chgrp($movedest, filegroup($fullpath));
+//          }
         }
 
         self::transfer($fullpath, $baseAlbum, $movedest); 
@@ -159,9 +160,10 @@ class Transfer_Files_Controller extends Controller {
 
   static function moveOrigFile($filepath, $destdir) {
     // move original file to another folder
-    if (is_writeable($destdir) && is_writeable($filepath)){
+    if (is_writable($destdir) && is_writable($filepath)){
       $destfile = $destdir . DIRECTORY_SEPARATOR . basename($filepath); 
       rename ($filepath, $destfile); 
+transfer_files::verboselog("  renamed $filepath to $destfile\n");
     }
 
   }
